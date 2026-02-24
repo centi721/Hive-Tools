@@ -6,8 +6,7 @@
 // @author       Arone
 // @match        https://www.amazon.co.jp/vine/vine-items?queue=encore*
 // @grant        GM_xmlhttpRequest
-// @updateURL    https://github.com/centi721/Hive-Tools/raw/refs/heads/main/Data-Sender.user.js
-// @downloadURL  https://github.com/centi721/Hive-Tools/raw/refs/heads/main/Data-Sender.user.js
+// @connect      firestore.googleapis.com
 // ==/UserScript==
 
 (function() {
@@ -16,8 +15,6 @@
     // --- Firebase設定 ---
     const FIREBASE_PROJECT_ID = "hivepremierchart";
     const FIREBASE_COLLECTION = "vine_counts";
-
-    // APIキーはBase64で難読化
     const ENCODED_KEY = "YTlGM2tMN3hRMm1aOHJUMXZZNnBING5KMGNXNXVC";
     const FIREBASE_API_KEY = atob(ENCODED_KEY);
 
@@ -46,99 +43,85 @@
             data: JSON.stringify(payload),
             onload: (res) => {
                 if (res.status === 200) {
-                    console.log(`[Data Sender] Firebaseへ送信成功: ${count}個`);
+                    console.log(`[Vine Data Sender] Firebaseへ送信成功: ${count}個`);
                 } else {
-                    console.error(`[Data Sender] 送信エラー (Status: ${res.status}):`, res.responseText);
+                    console.error("[Vine Data Sender] Firebase送信エラー:", res.status, res.responseText);
                 }
             },
             onerror: (err) => {
-                console.error("[Data Sender] 通信自体に失敗しました:", err);
+                console.error("[Vine Data Sender] Firebase通信エラー:", err);
             }
         });
     }
 
-    // ページから商品件数を厳密に取得する関数
-    // 戻り値: 数値(0含む) = 成功, null = 取得不可(エラーページ等)
-    function getItemCountFromDoc(doc) {
+    // ページから商品件数を取得する関数
+    function getItemCountFromDoc() {
         try {
-            // 1. 商品タイルがあるか確認
-            const itemTile = doc.querySelector('.vvp-item-tile');
-
-            // 2. 「オファーはありません」メッセージがあるか確認
-            const noOffersMsg = doc.querySelector('.vvp-no-offers-msg');
-
-            // 判定ロジック
-            if (itemTile) {
-                // 商品があるので数字を探す
-                const pTag = doc.querySelector('#vvp-items-grid-container p');
-                const strongTag = pTag ? pTag.querySelector('strong') : null;
-
-                if (strongTag) {
-                    const num = parseInt(strongTag.textContent.replace(/,/g, '').trim(), 10);
-                    return isNaN(num) ? null : num; // 数字じゃなければエラー扱い
-                }
-            } else if (noOffersMsg) {
-                // 商品はないが、正常な「0件」画面である
-                return 0;
+            const container = document.getElementById('vvp-items-grid-container');
+            if (!container) return null;
+            const pTag = container.querySelector('p');
+            if (!pTag) return null;
+            const strongTag = pTag.querySelector('strong');
+            if (strongTag) {
+                const num = parseInt(strongTag.textContent.replace(/,/g, '').trim(), 10);
+                return isNaN(num) ? 0 : num;
             }
-
-            // どちらでもない場合（CAPTCHA、犬画像、読み込み不全など）
-            console.warn("[Data Sender] 商品も0件メッセージも見つかりません。ページ異常の可能性があります。");
-            return null;
-
         } catch (e) {
-            console.error("[Data Sender] 解析エラー:", e);
-            return null;
+            console.error("[Vine Data Sender] アイテム数の取得に失敗しました", e);
         }
+        return 0;
     }
 
-    // メイン処理
+    // メイン処理 (ページ読み込み完了時に実行)
     window.addEventListener('load', () => {
 
-        // 1. URLチェック
+        // 1. URLの厳密な判定 (余計なパラメータがあるカテゴリページなどは除外)
         if (window.location.search !== '?queue=encore') {
+            console.log("[Vine Data Sender] 対象外のURLパラメータのため動作をスキップします。");
             return;
         }
 
-        // 2. リロード判定 (タブ復元防止)
+        // 2. リロード(手動/自動)かどうかの判定 (タブ復元によるキャッシュ送信を防止)
         const navEntries = performance.getEntriesByType("navigation");
         let isReload = false;
         if (navEntries.length > 0) {
             isReload = (navEntries[0].type === "reload");
         } else {
+            // 古いブラウザ用
             isReload = (performance.navigation.type === 1);
         }
 
         if (!isReload) {
-            console.log("[Data Sender] 初回/復元のため送信スキップ");
+            console.log("[Vine Data Sender] タブ復元または初回表示のため、送信をスキップします。");
             return;
         }
 
-        // 3. アイテム数取得
-        const currentCount = getItemCountFromDoc(document);
-
-        // nullなら異常ページなので何もしない（0送信を防ぐ）
-        if (currentCount === null) {
-            console.log("[Data Sender] 有効なアイテム数が取得できないため中断しました");
+        // 3. アイテム数の取得
+        const currentCount = getItemCountFromDoc();
+        if (currentCount === null || currentCount < 0) {
+            console.log("[Vine Data Sender] アイテム数が見つかりませんでした。");
             return;
         }
 
-        // 4. 変動チェックと送信
+        // 4. セッションに保存された前回値との比較
         const lastCountStr = sessionStorage.getItem(SESSION_LAST_COUNT_KEY);
         const lastCount = lastCountStr !== null ? parseInt(lastCountStr, 10) : null;
 
         if (lastCount === null) {
-            console.log(`[Data Sender] 初回送信: ${currentCount}個`);
+            // 初回(比較対象なし)は強制送信
+            console.log(`[Vine Data Sender] 初回リロード検知 (${currentCount}個)。送信します。`);
             sendToFirebase(currentCount);
             sessionStorage.setItem(SESSION_LAST_COUNT_KEY, currentCount.toString());
 
         } else if (lastCount !== currentCount) {
-            console.log(`[Data Sender] 変動あり (${lastCount} -> ${currentCount}) 送信`);
+            // 値に変動があれば送信
+            console.log(`[Vine Data Sender] 商品数の変動を検知 (${lastCount} -> ${currentCount})。送信します。`);
             sendToFirebase(currentCount);
             sessionStorage.setItem(SESSION_LAST_COUNT_KEY, currentCount.toString());
 
         } else {
-            console.log(`[Data Sender] 変動なし (${currentCount}個)`);
+            // 変動なし
+            console.log(`[Vine Data Sender] 商品数に変動なし (${currentCount}個)。送信をスキップします。`);
         }
     });
 
