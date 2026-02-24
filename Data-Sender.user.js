@@ -7,6 +7,8 @@
 // @match        https://www.amazon.co.jp/vine/vine-items?queue=encore*
 // @grant        GM_xmlhttpRequest
 // @connect      firestore.googleapis.com
+// @updateURL    https://github.com/centi721/Hive-Tools/raw/refs/heads/main/Data-Sender.user.js
+// @downloadURL  https://github.com/centi721/Hive-Tools/raw/refs/heads/main/Data-Sender.user.js
 // ==/UserScript==
 
 (function() {
