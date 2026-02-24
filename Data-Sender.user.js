@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Data Sender
 // @namespace    http://tampermonkey.net/
-// @version      1.3
+// @version      1.4
 // @description  Monitors item list updates.
 // @author       Arone
 // @match        https://www.amazon.co.jp/vine/vine-items?queue=encore*
