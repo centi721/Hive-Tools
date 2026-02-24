@@ -1,12 +1,14 @@
 // ==UserScript==
 // @name         Data Sender
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  Monitors item list updates.
 // @author       Arone
 // @match        https://www.amazon.co.jp/vine/vine-items?queue=encore*
 // @grant        GM_xmlhttpRequest
 // @connect      *
+// @updateURL    https://github.com/centi721/Hive-Tools/raw/refs/heads/main/Data-Sender.user.js
+// @downloadURL  https://github.com/centi721/Hive-Tools/raw/refs/heads/main/Data-Sender.user.js
 // ==/UserScript==
 
 (function() {
