@@ -6,7 +6,7 @@
 // @author       Arone
 // @match        https://www.amazon.co.jp/vine/vine-items?queue=encore*
 // @grant        GM_xmlhttpRequest
-// @connect      *
+// @connect      firestore.googleapis.com
 // ==/UserScript==
 
 (function() {
