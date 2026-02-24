@@ -85,16 +85,23 @@
 
         // 2. リロード(手動/自動)かどうかの判定 (タブ復元によるキャッシュ送信を防止)
         const navEntries = performance.getEntriesByType("navigation");
-        let isReload = false;
+        let isAllowedNavigation = false;
+
         if (navEntries.length > 0) {
-            isReload = (navEntries[0].type === "reload");
+            const navType = navEntries[0].type;
+            // リロード(F5等) または Amazon内からのリンク遷移なら許可
+            if (navType === "reload") {
+                isAllowedNavigation = true;
+            } else if (navType === "navigate" && document.referrer.includes("amazon.co.jp")) {
+                isAllowedNavigation = true;
+            }
         } else {
-            // 古いブラウザ用
-            isReload = (performance.navigation.type === 1);
+            // 古いブラウザ用フォールバック
+            isAllowedNavigation = (performance.navigation.type === 1);
         }
 
-        if (!isReload) {
-            console.log("[Vine Data Sender] タブ復元または初回表示のため、送信をスキップします。");
+        if (!isAllowedNavigation) {
+            console.log("[Data Sender] 初回/復元/外部からのアクセスのため送信スキップ");
             return;
         }
 
